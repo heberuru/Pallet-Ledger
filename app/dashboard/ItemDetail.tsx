@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { X, Plus, Trash2, ExternalLink, Loader2, ImageIcon, Video as VideoIcon, Link as LinkIcon } from "lucide-react";
+import { X, Plus, Trash2, ExternalLink, Loader2, ImageIcon, Video as VideoIcon, Link as LinkIcon, Pencil } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export type Media = {
@@ -22,6 +22,7 @@ export type DetailItem = {
   retail_price: number;
   retail_url: string | null;
   affiliate_url: string | null;
+  date_acquired?: string;
 };
 
 const fmt = (n: number | null | undefined) =>
@@ -43,13 +44,18 @@ export default function ItemDetail({
   onItemChange: (next: DetailItem) => void;
 }) {
   const supabase = createClient();
-  const [tab, setTab] = useState<"photos" | "video" | "retail">("photos");
+  const [tab, setTab] = useState<"details" | "photos" | "video" | "retail">("details");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [retailPrice, setRetailPrice] = useState(String(item.retail_price || ""));
   const [retailUrl, setRetailUrl] = useState(item.retail_url || "");
   const [affiliateUrl, setAffiliateUrl] = useState(item.affiliate_url || "");
   const [savingRetail, setSavingRetail] = useState(false);
+
+  const [name, setName] = useState(item.name);
+  const [lot, setLot] = useState(item.lot || "");
+  const [purchaseCost, setPurchaseCost] = useState(String(item.purchase_cost ?? ""));
+  const [savingDetails, setSavingDetails] = useState(false);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -120,6 +126,28 @@ export default function ItemDetail({
     onMediaChange(media.filter((x) => x.id !== m.id));
   }
 
+  async function saveDetails(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingDetails(true);
+    setError("");
+    const { data, error } = await supabase
+      .from("items")
+      .update({
+        name: name.trim(),
+        lot: lot.trim() || null,
+        purchase_cost: parseFloat(purchaseCost) || 0,
+      })
+      .eq("id", item.id)
+      .select()
+      .single();
+    setSavingDetails(false);
+    if (error || !data) {
+      setError("Couldn't save those changes. Try again.");
+      return;
+    }
+    onItemChange(data as DetailItem);
+  }
+
   async function saveRetail(e: React.FormEvent) {
     e.preventDefault();
     setSavingRetail(true);
@@ -146,7 +174,7 @@ export default function ItemDetail({
     <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-paper w-full sm:w-[460px] sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto p-5 pb-8">
-        <div className="flex items-start justify-between mb-1">
+        <div className="flex items-start justify-between mb-4">
           <div className="min-w-0">
             <h2 className="font-display text-lg font-semibold uppercase tracking-wide truncate">{item.name}</h2>
             {item.lot && <p className="text-xs text-muted">Lot {item.lot}</p>}
@@ -155,10 +183,12 @@ export default function ItemDetail({
             <X size={20} />
           </button>
         </div>
-        <p className="text-xs text-muted mb-4">Your cost: <b>{fmt(item.purchase_cost)}</b></p>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-4">
+        <div className="flex gap-2 mb-4 flex-wrap">
+          <TabButton active={tab === "details"} onClick={() => setTab("details")} icon={<Pencil size={14} />}>
+            Details
+          </TabButton>
           <TabButton active={tab === "photos"} onClick={() => setTab("photos")} icon={<ImageIcon size={14} />}>
             Photos ({photos.length}/10)
           </TabButton>
@@ -172,6 +202,37 @@ export default function ItemDetail({
 
         {error && (
           <div className="text-sm bg-[#F5E1DE] border border-rust text-rust rounded-lg px-3 py-2 mb-3">{error}</div>
+        )}
+
+        {tab === "details" && (
+          <form onSubmit={saveDetails} className="space-y-3">
+            <label className="block">
+              <span className="text-xs font-medium text-muted mb-1 block">Item name</span>
+              <input required className="field-input" value={name} onChange={(e) => setName(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-muted mb-1 block">Lot / pallet #</span>
+              <input className="field-input" value={lot} onChange={(e) => setLot(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-muted mb-1 block">Your cost</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="field-input"
+                value={purchaseCost}
+                onChange={(e) => setPurchaseCost(e.target.value)}
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={savingDetails}
+              className="w-full bg-ink text-cream font-semibold py-3 rounded-xl disabled:opacity-60"
+            >
+              {savingDetails ? "Saving…" : "Save changes"}
+            </button>
+          </form>
         )}
 
         {tab === "photos" && (
@@ -303,7 +364,7 @@ export default function ItemDetail({
               {savingRetail ? "Saving…" : "Save retail info"}
             </button>
             {(item.affiliate_url || item.retail_url) && (
-              <a
+              
                 href={item.affiliate_url || item.retail_url || "#"}
                 target="_blank"
                 rel="noreferrer"
