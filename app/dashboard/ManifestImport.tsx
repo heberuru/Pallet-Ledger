@@ -10,6 +10,7 @@ type ParsedRow = Record<string, any>;
 const NAME_HINTS = ["item description", "item title", "description", "title", "product", "item"];
 const QTY_HINTS = ["quantity", "qty", "units"];
 const RETAIL_HINTS = ["unit retail", "retail price", "unit retail price", "retail", "msrp", "price"];
+const CATEGORY_HINTS = ["category", "department", "sub-category", "subcategory"];
 
 function guessColumn(headers: string[], hints: string[]): string {
   const lower = headers.map((h) => h.toLowerCase().trim());
@@ -26,10 +27,12 @@ function guessColumn(headers: string[], hints: string[]): string {
 
 export default function ManifestImport({
   businessId,
+  existingLots,
   onClose,
   onImported,
 }: {
   businessId: string;
+  existingLots: string[];
   onClose: () => void;
   onImported: (count: number) => void;
 }) {
@@ -43,7 +46,18 @@ export default function ManifestImport({
   const [nameCol, setNameCol] = useState("");
   const [qtyCol, setQtyCol] = useState("");
   const [retailCol, setRetailCol] = useState("");
-  const [lot, setLot] = useState("");
+  const [categoryCol, setCategoryCol] = useState("");
+  const [lot, setLot] = useState(() => {
+    // Suggest a unique pallet name so every import is separated by default,
+    // even if the person doesn't think to name it themselves.
+    let n = existingLots.length + 1;
+    let candidate = `Pallet ${n}`;
+    while (existingLots.includes(candidate)) {
+      n += 1;
+      candidate = `Pallet ${n}`;
+    }
+    return candidate;
+  });
   const [totalCost, setTotalCost] = useState("");
   const [importedCount, setImportedCount] = useState(0);
 
@@ -66,6 +80,7 @@ export default function ManifestImport({
         setNameCol(guessColumn(foundHeaders, NAME_HINTS));
         setQtyCol(guessColumn(foundHeaders, QTY_HINTS));
         setRetailCol(guessColumn(foundHeaders, RETAIL_HINTS));
+        setCategoryCol(guessColumn(foundHeaders, CATEGORY_HINTS));
         setStep("map");
       } catch (err) {
         setError("Couldn't read that file. Make sure it's the .xlsx or .csv B-Stock gave you.");
@@ -79,7 +94,8 @@ export default function ManifestImport({
       const name = String(r[nameCol] ?? "").trim();
       const qty = Math.max(1, parseInt(String(r[qtyCol] ?? "1"), 10) || 1);
       const retail = parseFloat(String(r[retailCol] ?? "0").replace(/[^0-9.]/g, "")) || 0;
-      return { name, qty, retail };
+      const category = categoryCol ? String(r[categoryCol] ?? "").trim() || null : null;
+      return { name, qty, retail, category };
     })
     .filter((r) => r.name);
 
@@ -97,13 +113,15 @@ export default function ManifestImport({
     setError("");
 
     const toInsert: any[] = [];
+    const lotLabel = lot.trim() || `Import ${new Date().toISOString().slice(0, 10)}`;
     for (const r of parsedItems) {
       const unitCost = allocatedUnitCost(r.retail);
       for (let i = 0; i < r.qty; i++) {
         toInsert.push({
           business_id: businessId,
           name: r.name,
-          lot: lot.trim() || null,
+          lot: lotLabel,
+          category: r.category,
           purchase_cost: Math.round(unitCost * 100) / 100,
           retail_price: r.retail,
           date_acquired: new Date().toISOString().slice(0, 10),
@@ -147,7 +165,7 @@ export default function ManifestImport({
           <div>
             <p className="text-sm text-[#5b5647] mb-4">
               Upload the manifest spreadsheet B-Stock gives you when you win a bid (.xlsx, .xls, or .csv). Every
-              line item becomes an item in your ledger automatically.
+              line item becomes an item in your ledger automatically, kept separate from your other pallets.
             </p>
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -177,12 +195,13 @@ export default function ManifestImport({
                 <ColumnSelect label="Item name / description" headers={headers} value={nameCol} onChange={setNameCol} />
                 <ColumnSelect label="Quantity" headers={headers} value={qtyCol} onChange={setQtyCol} />
                 <ColumnSelect label="Unit retail price" headers={headers} value={retailCol} onChange={setRetailCol} />
+                <ColumnSelect label="Category (optional)" headers={headers} value={categoryCol} onChange={setCategoryCol} />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
-                <span className="text-xs font-medium text-muted mb-1 block">Lot / pallet #</span>
+                <span className="text-xs font-medium text-muted mb-1 block">Pallet name</span>
                 <input className="field-input" placeholder="e.g. BTK-4471" value={lot} onChange={(e) => setLot(e.target.value)} />
               </label>
               <label className="block">
@@ -247,8 +266,8 @@ export default function ManifestImport({
           <div className="text-center py-8">
             <p className="text-lg font-semibold mb-1">Done!</p>
             <p className="text-sm text-muted mb-5">
-              Added {importedCount} items{lot ? ` to lot ${lot}` : ""}. Add photos from the item detail view when
-              you're ready.
+              Added {importedCount} items to <b>{lot.trim() || "this pallet"}</b>. Add photos from the item
+              detail view when you're ready.
             </p>
             <button onClick={onClose} className="bg-ink text-cream font-semibold py-2.5 px-6 rounded-xl">
               Done
