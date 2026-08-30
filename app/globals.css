@@ -1,0 +1,30 @@
+@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background: #f3f0e8;
+  color: #211d17;
+}
+
+.stamp {
+  font-family: "Oswald", sans-serif;
+  transform: rotate(-8deg);
+  border: 3px solid #b23a2e;
+  color: #b23a2e;
+  letter-spacing: 0.12em;
+}
+
+.field-input {
+  width: 100%;
+  background: #faf8f3;
+  border: 1px solid #ddd6c4;
+  border-radius: 0.65rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.95rem;
+  outline: none;
+}
+.field-input:focus {
+  border-color: #f0a202;
+}
