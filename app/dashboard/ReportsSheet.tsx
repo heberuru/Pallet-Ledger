@@ -1,7 +1,5 @@
-
-5 reportssheet · TXT
 "use client";
- 
+
 import { useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -11,7 +9,7 @@ import {
   Hourglass,
   Boxes,
 } from "lucide-react";
- 
+
 type Item = {
   id: string;
   name: string;
@@ -24,19 +22,19 @@ type Item = {
   sold_price: number | null;
   date_sold: string | null;
 };
- 
+
 const fmt = (n: number | null | undefined) =>
   (Number(n) || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
- 
+
 function parseDate(d: string | null): Date | null {
   if (!d) return null;
   return new Date(`${d}T00:00:00`);
 }
- 
+
 function daysBetween(a: Date, b: Date) {
   return Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
 }
- 
+
 function getWeekStart(d: Date) {
   const day = d.getDay(); // 0 = Sunday
   const diff = (day === 0 ? -6 : 1) - day; // move to Monday
@@ -44,13 +42,13 @@ function getWeekStart(d: Date) {
   monday.setDate(d.getDate() + diff);
   return monday;
 }
- 
+
 function getQuarter(d: Date) {
   return Math.floor(d.getMonth() / 3) + 1;
 }
- 
+
 type Granularity = "day" | "week" | "month" | "quarter" | "year";
- 
+
 function periodKeyAndLabel(d: Date, granularity: Granularity): { key: string; label: string } {
   switch (granularity) {
     case "day": {
@@ -80,18 +78,18 @@ function periodKeyAndLabel(d: Date, granularity: Granularity): { key: string; la
     }
   }
 }
- 
+
 export default function ReportsSheet({ items, onClose }: { items: Item[]; onClose: () => void }) {
   const [granularity, setGranularity] = useState<Granularity>("month");
- 
+
   const soldItems = useMemo(() => items.filter((it) => it.status === "sold" && it.date_sold), [items]);
- 
+
   const overall = useMemo(() => {
     const revenue = soldItems.reduce((s, it) => s + (it.sold_price || 0), 0);
     const cost = soldItems.reduce((s, it) => s + (it.purchase_cost || 0), 0);
     return { revenue, profit: revenue - cost, count: soldItems.length };
   }, [soldItems]);
- 
+
   const periodRows = useMemo(() => {
     const map = new Map<string, { key: string; label: string; revenue: number; cost: number; count: number }>();
     for (const it of soldItems) {
@@ -108,16 +106,16 @@ export default function ReportsSheet({ items, onClose }: { items: Item[]; onClos
       .sort((a, b) => b.key.localeCompare(a.key))
       .slice(0, 12);
   }, [soldItems, granularity]);
- 
+
   const maxAbsProfit = Math.max(1, ...periodRows.map((r) => Math.abs(r.revenue - r.cost)));
- 
+
   const topItems = useMemo(() => {
     return [...soldItems]
       .map((it) => ({ ...it, profit: (it.sold_price || 0) - (it.purchase_cost || 0) }))
       .sort((a, b) => b.profit - a.profit)
       .slice(0, 10);
   }, [soldItems]);
- 
+
   const topPallets = useMemo(() => {
     const map = new Map<string, { lot: string; revenue: number; cost: number; count: number }>();
     for (const it of soldItems) {
@@ -133,7 +131,7 @@ export default function ReportsSheet({ items, onClose }: { items: Item[]; onClos
       .sort((a, b) => b.profit - a.profit)
       .slice(0, 10);
   }, [soldItems]);
- 
+
   const speedRanked = useMemo(() => {
     return soldItems
       .map((it) => {
@@ -144,10 +142,10 @@ export default function ReportsSheet({ items, onClose }: { items: Item[]; onClos
       })
       .filter((it) => it.days !== null) as (Item & { days: number })[];
   }, [soldItems]);
- 
+
   const fastest = useMemo(() => [...speedRanked].sort((a, b) => a.days - b.days).slice(0, 5), [speedRanked]);
   const slowest = useMemo(() => [...speedRanked].sort((a, b) => b.days - a.days).slice(0, 5), [speedRanked]);
- 
+
   const palletClearTimes = useMemo(() => {
     const byLot = new Map<string, Item[]>();
     for (const it of items) {
@@ -175,7 +173,7 @@ export default function ReportsSheet({ items, onClose }: { items: Item[]; onClos
     }
     return rows.sort((a, b) => b.days - a.days);
   }, [items]);
- 
+
   const inProgressLots = useMemo(() => {
     const byLot = new Map<string, Item[]>();
     for (const it of items) {
@@ -190,7 +188,7 @@ export default function ReportsSheet({ items, onClose }: { items: Item[]; onClos
     }
     return count;
   }, [items]);
- 
+
   return (
     <div className="fixed inset-0 z-50 bg-cream overflow-y-auto">
       <div className="bg-ink text-cream px-5 pt-8 pb-6 sticky top-0 z-10">
@@ -202,7 +200,7 @@ export default function ReportsSheet({ items, onClose }: { items: Item[]; onClos
         </div>
         <p className="text-sm text-[#c9c3b4] pl-8">Based on {soldItems.length} sold items</p>
       </div>
- 
+
       <div className="px-4 py-5 space-y-8 max-w-2xl mx-auto">
         {/* Overall */}
         <div className="grid grid-cols-3 gap-3">
@@ -210,7 +208,7 @@ export default function ReportsSheet({ items, onClose }: { items: Item[]; onClos
           <SummaryCard label="Total profit" value={fmt(overall.profit)} accent={overall.profit >= 0 ? "#2E7D4F" : "#B23A2E"} />
           <SummaryCard label="Items sold" value={String(overall.count)} />
         </div>
- 
+
         {/* Time-based breakdown */}
         <section>
           <div className="flex items-center justify-between mb-3">
@@ -260,7 +258,7 @@ export default function ReportsSheet({ items, onClose }: { items: Item[]; onClos
             </div>
           )}
         </section>
- 
+
         {/* Top items */}
         <section>
           <h2 className="font-display text-sm uppercase tracking-wide flex items-center gap-1.5 mb-3">
@@ -281,7 +279,7 @@ export default function ReportsSheet({ items, onClose }: { items: Item[]; onClos
             />
           )}
         </section>
- 
+
         {/* Top pallets */}
         <section>
           <h2 className="font-display text-sm uppercase tracking-wide flex items-center gap-1.5 mb-3">
@@ -302,7 +300,7 @@ export default function ReportsSheet({ items, onClose }: { items: Item[]; onClos
             />
           )}
         </section>
- 
+
         {/* Speed */}
         <section>
           <h2 className="font-display text-sm uppercase tracking-wide flex items-center gap-1.5 mb-3">
@@ -322,7 +320,7 @@ export default function ReportsSheet({ items, onClose }: { items: Item[]; onClos
             />
           )}
         </section>
- 
+
         <section>
           <h2 className="font-display text-sm uppercase tracking-wide flex items-center gap-1.5 mb-3">
             <Hourglass size={16} /> Slowest sellers
@@ -341,7 +339,7 @@ export default function ReportsSheet({ items, onClose }: { items: Item[]; onClos
             />
           )}
         </section>
- 
+
         {/* Pallet clearance time */}
         <section className="pb-8">
           <h2 className="font-display text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1">
@@ -375,7 +373,7 @@ export default function ReportsSheet({ items, onClose }: { items: Item[]; onClos
     </div>
   );
 }
- 
+
 function SummaryCard({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <div className="bg-white rounded-xl border border-line px-3 py-3">
@@ -386,11 +384,11 @@ function SummaryCard({ label, value, accent }: { label: string; value: string; a
     </div>
   );
 }
- 
+
 function EmptyNote({ text }: { text: string }) {
   return <p className="text-sm text-muted bg-white border border-line rounded-lg px-3 py-4 text-center">{text}</p>;
 }
- 
+
 function RankedList({
   rows,
 }: {
@@ -416,4 +414,3 @@ function RankedList({
     </div>
   );
 }
- 
