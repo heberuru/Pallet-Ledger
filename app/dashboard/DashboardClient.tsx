@@ -85,6 +85,7 @@ export default function DashboardClient({
   const [soldModalId, setSoldModalId] = useState<string | null>(null);
   const [soldForm, setSoldForm] = useState(emptySoldForm);
   const [filter, setFilter] = useState<"all" | "in_stock" | "sold">("all");
+  const [lotFilter, setLotFilter] = useState<string>("__all__");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
@@ -183,21 +184,31 @@ export default function DashboardClient({
     }
   }
 
+  const lots = useMemo(() => {
+    const set = new Set(items.map((i) => i.lot).filter(Boolean) as string[]);
+    return Array.from(set).sort();
+  }, [items]);
+
+  const lotScopedItems = useMemo(
+    () => (lotFilter === "__all__" ? items : items.filter((it) => it.lot === lotFilter)),
+    [items, lotFilter]
+  );
+
   const stats = useMemo(() => {
-    const invested = items.reduce((s, it) => s + (it.purchase_cost || 0), 0);
-    const sold = items.filter((it) => it.status === "sold");
+    const invested = lotScopedItems.reduce((s, it) => s + (it.purchase_cost || 0), 0);
+    const sold = lotScopedItems.filter((it) => it.status === "sold");
     const revenue = sold.reduce((s, it) => s + (it.sold_price || 0), 0);
     const soldCost = sold.reduce((s, it) => s + (it.purchase_cost || 0), 0);
     return {
       invested,
       revenue,
       profit: revenue - soldCost,
-      inStock: items.filter((it) => it.status === "in_stock").length,
+      inStock: lotScopedItems.filter((it) => it.status === "in_stock").length,
       sold: sold.length,
     };
-  }, [items]);
+  }, [lotScopedItems]);
 
-  const visible = items.filter((it) => (filter === "all" ? true : it.status === filter));
+  const visible = lotScopedItems.filter((it) => (filter === "all" ? true : it.status === filter));
   const detailItem = items.find((it) => it.id === detailItemId) || null;
 
   return (
@@ -221,8 +232,26 @@ export default function DashboardClient({
         <p className="text-sm text-[#c9c3b4]">{businessName}</p>
       </div>
 
+      {/* Pallet selector */}
+      {lots.length > 0 && (
+        <div className="px-4 -mt-4">
+          <select
+            className="field-input text-sm font-medium bg-white shadow-sm"
+            value={lotFilter}
+            onChange={(e) => setLotFilter(e.target.value)}
+          >
+            <option value="__all__">All pallets ({items.length} items)</option>
+            {lots.map((l) => (
+              <option key={l} value={l}>
+                Lot {l} ({items.filter((i) => i.lot === l).length} items)
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Stats */}
-      <div className="px-4 -mt-4">
+      <div className="px-4 mt-3">
         <div className="grid grid-cols-2 gap-3">
           <StatCard icon={<Receipt size={16} />} label="Invested" value={fmt(stats.invested)} />
           <StatCard icon={<DollarSign size={16} />} label="Revenue" value={fmt(stats.revenue)} />
