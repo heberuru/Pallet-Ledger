@@ -17,12 +17,14 @@ import {
   Users,
   FileUp,
   Divide,
+  BarChart3,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import ItemDetail, { Media } from "./ItemDetail";
 import TeamSheet from "./TeamSheet";
 import ManifestImport from "./ManifestImport";
 import SplitCostTool from "./SplitCostTool";
+import ReportsSheet from "./ReportsSheet";
 
 const PAYMENT_METHODS = ["Cash", "Zelle", "Venmo", "PayPal", "Cash App", "Card", "Other"];
 
@@ -30,6 +32,7 @@ type Item = {
   id: string;
   name: string;
   lot: string | null;
+  category: string | null;
   purchase_cost: number;
   retail_price: number;
   retail_url: string | null;
@@ -81,11 +84,15 @@ export default function DashboardClient({
   const [showTeam, setShowTeam] = useState(false);
   const [showManifest, setShowManifest] = useState(false);
   const [showSplitCost, setShowSplitCost] = useState(false);
+  const [showReports, setShowReports] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [soldModalId, setSoldModalId] = useState<string | null>(null);
   const [soldForm, setSoldForm] = useState(emptySoldForm);
   const [filter, setFilter] = useState<"all" | "in_stock" | "sold">("all");
   const [lotFilter, setLotFilter] = useState<string>("__all__");
+  const [sortBy, setSortBy] = useState<
+    "date_desc" | "date_asc" | "price_desc" | "price_asc" | "name_asc" | "category_asc" | "unsold_first" | "sold_first"
+  >("date_desc");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
@@ -208,7 +215,37 @@ export default function DashboardClient({
     };
   }, [lotScopedItems]);
 
-  const visible = lotScopedItems.filter((it) => (filter === "all" ? true : it.status === filter));
+  const visible = useMemo(() => {
+    const filtered = lotScopedItems.filter((it) => (filter === "all" ? true : it.status === filter));
+    const sorted = [...filtered];
+    switch (sortBy) {
+      case "date_desc":
+        sorted.sort((a, b) => (b.date_acquired || "").localeCompare(a.date_acquired || ""));
+        break;
+      case "date_asc":
+        sorted.sort((a, b) => (a.date_acquired || "").localeCompare(b.date_acquired || ""));
+        break;
+      case "price_desc":
+        sorted.sort((a, b) => (b.purchase_cost || 0) - (a.purchase_cost || 0));
+        break;
+      case "price_asc":
+        sorted.sort((a, b) => (a.purchase_cost || 0) - (b.purchase_cost || 0));
+        break;
+      case "name_asc":
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "category_asc":
+        sorted.sort((a, b) => (a.category || "zzz").localeCompare(b.category || "zzz"));
+        break;
+      case "unsold_first":
+        sorted.sort((a, b) => (a.status === "sold" ? 1 : 0) - (b.status === "sold" ? 1 : 0));
+        break;
+      case "sold_first":
+        sorted.sort((a, b) => (b.status === "sold" ? 1 : 0) - (a.status === "sold" ? 1 : 0));
+        break;
+    }
+    return sorted;
+  }, [lotScopedItems, filter, sortBy]);
   const detailItem = items.find((it) => it.id === detailItemId) || null;
 
   return (
@@ -221,6 +258,9 @@ export default function DashboardClient({
             <h1 className="font-display text-2xl tracking-wide uppercase">Pallet Ledger</h1>
           </div>
           <div className="flex items-center gap-3">
+            <button onClick={() => setShowReports(true)} className="text-[#c9c3b4]" aria-label="Reports">
+              <BarChart3 size={18} />
+            </button>
             <button onClick={() => setShowTeam(true)} className="text-[#c9c3b4]" aria-label="Team">
               <Users size={18} />
             </button>
@@ -272,7 +312,7 @@ export default function DashboardClient({
       )}
 
       {/* Filter tabs */}
-      <div className="flex gap-2 px-4 mt-5 items-center justify-between">
+      <div className="flex gap-2 px-4 mt-5 items-center justify-between flex-wrap">
         <div className="flex gap-2">
           {(["all", "in_stock", "sold"] as const).map((key) => (
             <button
@@ -287,12 +327,28 @@ export default function DashboardClient({
           ))}
         </div>
         {items.length > 0 && (
-          <button
-            onClick={() => setShowSplitCost(true)}
-            className="flex items-center gap-1 text-xs font-medium text-muted border border-input bg-white px-2.5 py-1.5 rounded-full"
-          >
-            <Divide size={13} /> Split cost
-          </button>
+          <div className="flex items-center gap-2">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+              className="text-xs font-medium text-ink border border-input bg-white px-2 py-1.5 rounded-full"
+            >
+              <option value="date_desc">Newest first</option>
+              <option value="date_asc">Oldest first</option>
+              <option value="price_desc">Price: high to low</option>
+              <option value="price_asc">Price: low to high</option>
+              <option value="name_asc">Name A–Z</option>
+              <option value="category_asc">Category</option>
+              <option value="unsold_first">In stock first</option>
+              <option value="sold_first">Sold first</option>
+            </select>
+            <button
+              onClick={() => setShowSplitCost(true)}
+              className="flex items-center gap-1 text-xs font-medium text-muted border border-input bg-white px-2.5 py-1.5 rounded-full"
+            >
+              <Divide size={13} /> Split cost
+            </button>
+          </div>
         )}
       </div>
 
@@ -488,9 +544,11 @@ export default function DashboardClient({
           }}
         />
       )}
+      {showReports && <ReportsSheet items={items} onClose={() => setShowReports(false)} />}
       {showManifest && (
         <ManifestImport
           businessId={businessId}
+          existingLots={lots}
           onClose={() => setShowManifest(false)}
           onImported={() => reloadItems()}
         />
@@ -567,7 +625,12 @@ function ItemCard({
           <div className="flex items-start justify-between gap-2">
             <button onClick={onOpen} className="min-w-0 text-left">
               <p className="font-semibold text-sm truncate">{item.name}</p>
-              {item.lot && <p className="text-[11px] text-muted">Lot {item.lot}</p>}
+              <div className="flex items-center gap-1.5">
+                {item.lot && <p className="text-[11px] text-muted">Lot {item.lot}</p>}
+                {item.category && (
+                  <span className="text-[10px] text-muted bg-cream px-1.5 py-0.5 rounded-full">{item.category}</span>
+                )}
+              </div>
             </button>
             <button onClick={onRemove} className="text-input hover:text-rust flex-shrink-0" aria-label="Delete item">
               <X size={15} />
