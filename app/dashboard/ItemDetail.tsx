@@ -364,7 +364,7 @@ export default function ItemDetail({
               {savingRetail ? "Saving…" : "Save retail info"}
             </button>
             {(item.affiliate_url || item.retail_url) && (
-              
+              <a
                 href={item.affiliate_url || item.retail_url || "#"}
                 target="_blank"
                 rel="noreferrer"
