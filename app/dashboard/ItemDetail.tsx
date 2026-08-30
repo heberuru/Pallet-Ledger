@@ -18,6 +18,7 @@ export type DetailItem = {
   id: string;
   name: string;
   lot: string | null;
+  category: string | null;
   purchase_cost: number;
   retail_price: number;
   retail_url: string | null;
@@ -54,6 +55,7 @@ export default function ItemDetail({
 
   const [name, setName] = useState(item.name);
   const [lot, setLot] = useState(item.lot || "");
+  const [category, setCategory] = useState(item.category || "");
   const [purchaseCost, setPurchaseCost] = useState(String(item.purchase_cost ?? ""));
   const [savingDetails, setSavingDetails] = useState(false);
 
@@ -135,6 +137,7 @@ export default function ItemDetail({
       .update({
         name: name.trim(),
         lot: lot.trim() || null,
+        category: category.trim() || null,
         purchase_cost: parseFloat(purchaseCost) || 0,
       })
       .eq("id", item.id)
@@ -213,6 +216,10 @@ export default function ItemDetail({
             <label className="block">
               <span className="text-xs font-medium text-muted mb-1 block">Lot / pallet #</span>
               <input className="field-input" value={lot} onChange={(e) => setLot(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-muted mb-1 block">Category</span>
+              <input className="field-input" placeholder="e.g. Electronics" value={category} onChange={(e) => setCategory(e.target.value)} />
             </label>
             <label className="block">
               <span className="text-xs font-medium text-muted mb-1 block">Your cost</span>
