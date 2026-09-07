@@ -18,6 +18,9 @@ import {
   FileUp,
   Divide,
   BarChart3,
+  Store,
+  CreditCard,
+  Lock,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import ItemDetail, { Media } from "./ItemDetail";
@@ -25,8 +28,11 @@ import TeamSheet from "./TeamSheet";
 import ManifestImport from "./ManifestImport";
 import SplitCostTool from "./SplitCostTool";
 import ReportsSheet from "./ReportsSheet";
+import StorefrontSheet from "./StorefrontSheet";
+import BillingSheet from "./BillingSheet";
 
 const PAYMENT_METHODS = ["Cash", "Zelle", "Venmo", "PayPal", "Cash App", "Card", "Other"];
+const ITEM_LIMIT = 20;
 
 type Item = {
   id: string;
@@ -37,6 +43,7 @@ type Item = {
   retail_price: number;
   retail_url: string | null;
   affiliate_url: string | null;
+  listing_price: number | null;
   date_acquired: string;
   status: "in_stock" | "sold";
   sold_price: number | null;
@@ -65,12 +72,18 @@ const emptySoldForm = {
 export default function DashboardClient({
   businessId,
   businessName,
+  storefrontContact,
+  subscriptionStatus,
+  trialEndsAt,
   currentUserId,
   initialItems,
   initialMedia,
 }: {
   businessId: string;
   businessName: string;
+  storefrontContact: string | null;
+  subscriptionStatus: string;
+  trialEndsAt: string | null;
   currentUserId: string;
   initialItems: Item[];
   initialMedia: Media[];
@@ -85,6 +98,8 @@ export default function DashboardClient({
   const [showManifest, setShowManifest] = useState(false);
   const [showSplitCost, setShowSplitCost] = useState(false);
   const [showReports, setShowReports] = useState(false);
+  const [showStorefront, setShowStorefront] = useState(false);
+  const [showBilling, setShowBilling] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [soldModalId, setSoldModalId] = useState<string | null>(null);
   const [soldForm, setSoldForm] = useState(emptySoldForm);
@@ -96,6 +111,21 @@ export default function DashboardClient({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
+
+  // ---- Billing gate ----
+  const isActive = subscriptionStatus === "active";
+  const trialEnd = trialEndsAt ? new Date(trialEndsAt) : null;
+  const inTrial = !isActive && !!trialEnd && trialEnd.getTime() > Date.now();
+  const trialDaysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / 86400000)) : 0;
+  const locked = !isActive && !inTrial && items.length >= ITEM_LIMIT;
+
+  function openBillingOrAction(action: () => void) {
+    if (locked) {
+      setShowBilling(true);
+      return;
+    }
+    action();
+  }
 
   async function reloadItems() {
     const { data } = await supabase
@@ -134,14 +164,17 @@ export default function DashboardClient({
 
     setSaving(false);
     if (error || !data) {
-      setError("Couldn't save that item. Try again.");
+      setError(
+        error?.message?.includes("FREE_LIMIT_REACHED")
+          ? `You've hit the ${ITEM_LIMIT}-item free limit. Upgrade to add more.`
+          : "Couldn't save that item. Try again."
+      );
       return;
     }
     const newItem = data as Item;
     setItems([newItem, ...items]);
     setForm(emptyForm);
     setShowAdd(false);
-    // Jump straight into photo/video upload for the item just logged
     setDetailItemId(newItem.id);
   }
 
@@ -246,6 +279,7 @@ export default function DashboardClient({
     }
     return sorted;
   }, [lotScopedItems, filter, sortBy]);
+
   const detailItem = items.find((it) => it.id === detailItemId) || null;
 
   return (
@@ -258,6 +292,12 @@ export default function DashboardClient({
             <h1 className="font-display text-2xl tracking-wide uppercase">Pallet Ledger</h1>
           </div>
           <div className="flex items-center gap-3">
+            <button onClick={() => setShowBilling(true)} className="text-[#c9c3b4]" aria-label="Billing">
+              <CreditCard size={18} />
+            </button>
+            <button onClick={() => setShowStorefront(true)} className="text-[#c9c3b4]" aria-label="Storefront">
+              <Store size={18} />
+            </button>
             <button onClick={() => setShowReports(true)} className="text-[#c9c3b4]" aria-label="Reports">
               <BarChart3 size={18} />
             </button>
@@ -271,6 +311,22 @@ export default function DashboardClient({
         </div>
         <p className="text-sm text-[#c9c3b4]">{businessName}</p>
       </div>
+
+      {/* Trial / lock banner */}
+      {!isActive && (
+        <button
+          onClick={() => setShowBilling(true)}
+          className={`w-full text-left px-4 py-2 text-xs font-medium ${
+            locked ? "bg-[#FDF3E0] text-[#7a5a0a]" : "bg-white text-muted border-b border-line"
+          }`}
+        >
+          {locked
+            ? `You've hit the ${ITEM_LIMIT}-item free limit — tap to upgrade`
+            : inTrial
+            ? `${trialDaysLeft} day${trialDaysLeft !== 1 ? "s" : ""} left in your trial — tap to see plans`
+            : "Trial ended — tap to upgrade"}
+        </button>
+      )}
 
       {/* Pallet selector */}
       {lots.length > 0 && (
@@ -383,19 +439,19 @@ export default function DashboardClient({
       </div>
 
       <button
-        onClick={() => setShowManifest(true)}
+        onClick={() => openBillingOrAction(() => setShowManifest(true))}
         className="fixed bottom-24 right-5 bg-white border border-line text-ink rounded-full shadow-lg w-14 h-14 flex items-center justify-center active:scale-95 transition-transform"
         aria-label="Import manifest"
       >
-        <FileUp size={22} />
+        {locked ? <Lock size={20} /> : <FileUp size={22} />}
       </button>
 
       <button
-        onClick={() => setShowAdd(true)}
+        onClick={() => openBillingOrAction(() => setShowAdd(true))}
         className="fixed bottom-6 right-5 bg-amber text-ink rounded-full shadow-lg w-14 h-14 flex items-center justify-center active:scale-95 transition-transform"
         aria-label="Add item"
       >
-        <Plus size={26} strokeWidth={2.5} />
+        {locked ? <Lock size={22} /> : <Plus size={26} strokeWidth={2.5} />}
       </button>
 
       {showAdd && (
@@ -544,13 +600,28 @@ export default function DashboardClient({
           }}
         />
       )}
-      {showReports && <ReportsSheet items={items} onClose={() => setShowReports(false)} />}
       {showManifest && (
         <ManifestImport
           businessId={businessId}
           existingLots={lots}
           onClose={() => setShowManifest(false)}
           onImported={() => reloadItems()}
+        />
+      )}
+      {showReports && <ReportsSheet items={items} onClose={() => setShowReports(false)} />}
+      {showStorefront && (
+        <StorefrontSheet
+          businessId={businessId}
+          initialContact={storefrontContact}
+          onClose={() => setShowStorefront(false)}
+        />
+      )}
+      {showBilling && (
+        <BillingSheet
+          subscriptionStatus={subscriptionStatus}
+          trialEndsAt={trialEndsAt}
+          itemCount={items.length}
+          onClose={() => setShowBilling(false)}
         />
       )}
       {showTeam && (
@@ -644,6 +715,9 @@ function ItemCard({
               <span>
                 Retail: <b>{fmt(item.retail_price)}</b>
               </span>
+            )}
+            {item.listing_price != null && item.listing_price > 0 && (
+              <span className="text-amber font-medium">Listed: {fmt(item.listing_price)}</span>
             )}
           </div>
           {isSold && (
