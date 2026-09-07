@@ -12,13 +12,12 @@ export default async function DashboardPage() {
 
   const { data: membership } = await supabase
     .from("business_members")
-    .select("business_id, businesses(id, name, plan)")
+    .select("business_id, businesses(id, name, plan, storefront_contact, subscription_status, trial_ends_at)")
     .eq("user_id", user.id)
     .limit(1)
     .single();
 
   if (!membership) {
-    // Shouldn't normally happen — every signed-up user gets a business.
     redirect("/signup");
   }
 
@@ -42,6 +41,9 @@ export default async function DashboardPage() {
     <DashboardClient
       businessId={business.id}
       businessName={business.name}
+      storefrontContact={business.storefront_contact}
+      subscriptionStatus={business.subscription_status || "trialing"}
+      trialEndsAt={business.trial_ends_at}
       currentUserId={user.id}
       initialItems={items ?? []}
       initialMedia={media ?? []}
